@@ -66,4 +66,9 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    // ViewModel for Compose
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
+
+    // Optional: 如果还没有引入 lifecycle-runtime-ktx 扩展库
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
 }
