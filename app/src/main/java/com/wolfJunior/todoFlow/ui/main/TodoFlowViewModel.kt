@@ -12,43 +12,39 @@ import androidx.lifecycle.ViewModel
  * Email:raohui@inshot.com
  */
 class TodoFlowViewModel : ViewModel() {
-    // 保存代办项列表
-    var todoList by mutableStateOf(listOf<String>())
+    var parentItems by mutableStateOf(listOf<ParentItemData>())
         private set
 
-    // 保存弹窗显示状态
-    var showDialog by mutableStateOf(false)
+    var showAddParentDialog by mutableStateOf(false)
         private set
 
-    // 保存输入框的文本状态
+    var showAddChildDialog by mutableStateOf(false)
+        private set
+
+    var currentParentIndex by mutableStateOf(-1)
+        private set
+
     var textState by mutableStateOf(TextFieldValue(""))
 
-    // 显示弹窗
-    fun openDialog() {
-        showDialog = true
+    fun toggleAddParentDialog() {
+        showAddParentDialog = !showAddParentDialog
     }
 
-    // 关闭弹窗并重置输入框状态
-    fun closeDialog() {
-        showDialog = false
-        resetTextState() // 重置输入框
+    fun toggleAddChildDialog(index: Int) {
+        currentParentIndex = index
+        showAddChildDialog = !showAddChildDialog
     }
 
-    // 添加代办项
-    fun addTodoItem() {
-        if (textState.text.isNotEmpty()) {
-            todoList = todoList + textState.text
-            closeDialog() // 添加后关闭弹窗
-        }
+    fun addParentItem(name: String) {
+        parentItems = parentItems + ParentItemData(name)
     }
 
-    // 更新输入框状态
-    fun updateTextState(newText: TextFieldValue) {
-        textState = newText
-    }
-
-    // 重置输入框状态
-    private fun resetTextState() {
-        textState = TextFieldValue("")
+    fun addChildItem(parentIndex: Int, code: String, duration: Int) {
+        val parent = parentItems[parentIndex]
+        val updatedParent = parent.copy(children = parent.children + ChildItemData(code, duration))
+        parentItems = parentItems.toMutableList().apply { set(parentIndex, updatedParent) }
     }
 }
+
+data class ParentItemData(val name: String, val children: List<ChildItemData> = emptyList())
+data class ChildItemData(val code: String, val duration: Int)
