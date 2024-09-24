@@ -4,34 +4,42 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -236,7 +244,9 @@ fun AddParentDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
 @Composable
 fun AddChildDialog(onDismiss: () -> Unit, onConfirm: (String, Int) -> Unit) {
     var codeState by remember { mutableStateOf(TextFieldValue("")) }
-    var durationState by remember { mutableStateOf(0) }
+    var selectedHours by remember { mutableIntStateOf(0) }
+    var selectedMinutes by remember { mutableIntStateOf(0) }
+    var selectedSeconds by remember { mutableIntStateOf(0) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -260,7 +270,11 @@ fun AddChildDialog(onDismiss: () -> Unit, onConfirm: (String, Int) -> Unit) {
                     Text(text = "添加代表项", fontSize = 18.sp)
 
                     Row {
-                        IconButton(onClick = { onConfirm(codeState.text, durationState) }) {
+                        IconButton(onClick = {
+                            val totalSeconds =
+                                selectedHours * 3600 + selectedMinutes * 60 + selectedSeconds
+                            onConfirm(codeState.text, totalSeconds)
+                        }) {
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_check),
                                 contentDescription = "确认"
@@ -282,9 +296,16 @@ fun AddChildDialog(onDismiss: () -> Unit, onConfirm: (String, Int) -> Unit) {
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // 滚轮选择时分秒
                 DurationPicker(
-                    selectedDuration = durationState,
-                    onDurationChange = { durationState = it }
+                    hours = selectedHours,
+                    minutes = selectedMinutes,
+                    seconds = selectedSeconds,
+                    onDurationChange = { h, m, s ->
+                        selectedHours = h
+                        selectedMinutes = m
+                        selectedSeconds = s
+                    }
                 )
             }
         }
@@ -292,19 +313,118 @@ fun AddChildDialog(onDismiss: () -> Unit, onConfirm: (String, Int) -> Unit) {
 }
 
 @Composable
-fun DurationPicker(selectedDuration: Int, onDurationChange: (Int) -> Unit) {
+fun DurationPicker(
+    hours: Int,
+    minutes: Int,
+    seconds: Int,
+    onDurationChange: (Int, Int, Int) -> Unit
+) {
+    var selectedHours by remember { mutableIntStateOf(hours) }
+    var selectedMinutes by remember { mutableIntStateOf(minutes) }
+    var selectedSeconds by remember { mutableIntStateOf(seconds) }
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = "选择时长（秒）", fontSize = 14.sp)
-        Slider(
-            value = selectedDuration.toFloat(),
-            onValueChange = { onDurationChange(it.toInt()) },
-            valueRange = 0f..3600f
+        // 小时滚轮选择
+        NumberPicker(
+            value = selectedHours,
+            range = 0..23,
+            onValueChange = { selectedHours = it }
         )
-        Text(text = "${selectedDuration}s")
+        Text(text = "小时", fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterVertically))
+
+        // 分钟滚轮选择
+        NumberPicker(
+            value = selectedMinutes,
+            range = 0..59,
+            onValueChange = { selectedMinutes = it }
+        )
+        Text(text = "分钟", fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterVertically))
+
+        // 秒钟滚轮选择 - 确保宽度足够
+        NumberPicker(
+            value = selectedSeconds,
+            range = 0..59,
+            onValueChange = { selectedSeconds = it }
+        )
+        Text(text = "秒", fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterVertically))
+    }
+
+    // 更新外部状态
+    onDurationChange(selectedHours, selectedMinutes, selectedSeconds)
+}
+
+@Composable
+fun NumberPicker(
+    value: Int,
+    range: IntRange,
+    onValueChange: (Int) -> Unit
+) {
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = value)
+
+    // 滚动到当前选中的数字
+    LaunchedEffect(value) {
+        if (listState.firstVisibleItemIndex != value) {
+            listState.animateScrollToItem(value)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .height(100.dp)  // 控制整个滚轮选择器的高度
+            .width(40.dp),   // 增加宽度，适应更多数字
+        contentAlignment = Alignment.Center // 确保选中的值始终居中
+    ) {
+        // LazyColumn 中心对齐
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            items(range.toList()) { item ->
+                Text(
+                    text = item.toString(),
+                    fontSize = 15.sp,  // 减小字体大小
+                    modifier = Modifier
+                        .height(35.dp) // 确保每个数字的高度一致
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .clickable {
+                            onValueChange(item)
+                        },
+                    textAlign = TextAlign.Center // 数字居中对齐
+                )
+            }
+        }
+
+        // 中心选择框，作为视觉上的参考线
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .height(40.dp) // 参考框的高度与单个数字项一致
+                .background(
+                    color = Color.Transparent, // 可视需求设定透明度或边框线
+                    shape = RoundedCornerShape(8.dp)
+                )
+        )
+    }
+
+    // 滚动结束时更新选择的值
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .collect { index ->
+                val adjustedValue = range.elementAt(index)
+                if (adjustedValue != value) {
+                    onValueChange(adjustedValue)
+                }
+            }
     }
 }
 
